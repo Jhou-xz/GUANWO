@@ -1,0 +1,53 @@
+# Secrets / local env files
+.env
+.env.*
+!.env.example
+docker/.env.production
+docker/.env.development
+docker/.env.*
+!docker/.env.example
+!docker/.env.development.example
+
+# Dependencies / build outputs
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local data
+.pgdata/
+*.sqlite3
+*.db
+
+# Generated certificates / runtime data
+docker/certbot/conf/
+docker/certbot/www/
+docker/nginx/ssl/
+backups/
+
+# OS / editor
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# Reference material not part of the app
+Kimi_Agent_观我 AI星座部署方案/
+design/
+

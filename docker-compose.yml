@@ -1,0 +1,14 @@
+# =============================================================================
+# GuanWo (观我) - Root Docker Compose
+# =============================================================================
+# This file includes the production Docker Compose configuration from the
+# docker/ directory. Paths inside docker/docker-compose.yml are resolved
+# relative to that file.
+#
+# Usage:
+#   docker compose up -d
+#   docker compose -f docker/docker-compose.yml -f docker/docker-compose.override.yml up -d
+# =============================================================================
+
+include:
+  - docker/docker-compose.yml

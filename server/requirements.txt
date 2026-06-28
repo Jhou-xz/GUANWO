@@ -1,0 +1,38 @@
+# Core
+Django==5.1.7
+django-ninja==1.6.0
+
+# Environment & configuration
+environs==14.1.0
+python-dotenv==1.1.0
+
+# Database
+psycopg2-binary==2.9.10
+dj-database-url==2.3.0
+
+# HTTP client
+httpx[http2]==0.28.1
+
+# CORS
+django-cors-headers==4.7.0
+
+# Static files
+whitenoise==6.9.0
+
+# Cache / sessions / rate limiting
+redis==5.2.1
+django-redis==5.4.0
+
+# Structured logging
+python-json-logger==3.2.1
+
+# Error tracking (optional)
+sentry-sdk[django]==2.25.1
+
+# Security
+cryptography==44.0.2
+
+# ASGI / WSGI server
+gunicorn==23.0.0
+uvicorn[standard]==0.34.0
+websockets==14.2

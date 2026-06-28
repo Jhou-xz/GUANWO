@@ -1,0 +1,203 @@
+# =============================================================================
+# GuanWo (观我) - Production Docker Compose
+# =============================================================================
+# Designed for a 2vCPU/4GB VPS.
+# Only nginx is exposed to the internet - all other services are internal.
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Nginx - Reverse Proxy / SSL Termination / Static Files
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: nginx:1.26-alpine
+    container_name: guanwo-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ../dist:/usr/share/nginx/html:ro
+      - staticfiles:/usr/share/nginx/static:ro
+      - media:/usr/share/nginx/media:ro
+      - ./certbot/www:/var/www/certbot:ro
+    depends_on:
+      django:
+        condition: service_healthy
+    networks:
+      - guanwo_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ---------------------------------------------------------------------------
+  # Django - Gunicorn + Uvicorn ASGI Application Server
+  # ---------------------------------------------------------------------------
+  django:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+    container_name: guanwo-django
+    restart: unless-stopped
+    # No exposed ports - accessed only via nginx proxy
+    env_file:
+      - .env.production
+    environment:
+      - DJANGO_SETTINGS_MODULE=server.settings
+    volumes:
+      - staticfiles:/app/server/staticfiles
+      - media:/app/server/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - guanwo_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # Graceful shutdown - let Gunicorn finish requests
+    stop_grace_period: 30s
+    stop_signal: SIGTERM
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL - Primary Database
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: guanwo-postgres
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    env_file:
+      - .env.production
+    networks:
+      - guanwo_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-guanwo} -d ${POSTGRES_DB:-guanwo}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    # Performance tuning for 2vCPU/4GB VPS
+    command:
+      - "postgres"
+      - "-c"
+      - "shared_buffers=256MB"
+      - "-c"
+      - "effective_cache_size=768MB"
+      - "-c"
+      - "max_connections=100"
+      - "-c"
+      - "wal_buffers=16MB"
+      - "-c"
+      - "work_mem=4MB"
+      - "-c"
+      - "maintenance_work_mem=64MB"
+
+  # ---------------------------------------------------------------------------
+  # Redis - Cache / Sessions / Rate Limiting
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: guanwo-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - guanwo_network
+    # Memory-constrained configuration for VPS
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --appendonly yes
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  # ---------------------------------------------------------------------------
+  # Certbot - Let's Encrypt SSL Certificate Management
+  # ---------------------------------------------------------------------------
+  certbot:
+    image: certbot/certbot:latest
+    container_name: guanwo-certbot
+    restart: unless-stopped
+    volumes:
+      - certbot_data:/etc/letsencrypt
+      - ./certbot/www:/var/www/certbot
+    entrypoint: >
+      sh -c '
+        trap "exit" TERM;
+        while true; do
+          certbot renew --webroot -w /var/www/certbot --quiet;
+          sleep 12h;
+        done
+      '
+    networks:
+      - guanwo_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Certbot doesn't need to run continuously - cron-based renewal
+    profiles:
+      - ssl
+
+# =============================================================================
+# Named Volumes
+# =============================================================================
+volumes:
+  postgres_data:
+    name: guanwo_postgres_data
+  redis_data:
+    name: guanwo_redis_data
+  certbot_data:
+    name: guanwo_certbot_data
+  staticfiles:
+    name: guanwo_staticfiles
+  media:
+    name: guanwo_media
+
+# =============================================================================
+# Networks - Isolated Internal Network
+# =============================================================================
+networks:
+  guanwo_network:
+    driver: bridge
+    name: guanwo_network
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

@@ -1,0 +1,33 @@
+# 最小 CI：每次 push / PR 跑类型检查 + 测试 + 构建，挡住回归。
+# 测试用 PGlite（纯 WASM、无系统依赖），无需起 Postgres；构建仅验证可产出，不部署。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22' # vite7/vitest4 要求构建环境 Node ≥ 20.19，锁 22 与本地一致
+          cache: npm
+
+      - name: Install (lockfile 一致性)
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Build
+        run: npm run build

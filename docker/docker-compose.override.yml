@@ -1,0 +1,52 @@
+# =============================================================================
+# GuanWo (观我) - Development Docker Compose Override
+# =============================================================================
+# This file extends docker/docker-compose.yml for local development.
+# It exposes common ports on localhost and enables debug settings.
+#
+# Usage:
+#   docker compose -f docker/docker-compose.yml -f docker/docker-compose.override.yml up -d
+#   or
+#   make up-dev
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Nginx - Expose on localhost:8080 instead of 80/443
+  # ---------------------------------------------------------------------------
+  nginx:
+    ports:
+      - "8080:80"
+
+  # ---------------------------------------------------------------------------
+  # Django - Expose direct port for debugging and hot reload
+  # ---------------------------------------------------------------------------
+  django:
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.development
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=True
+    volumes:
+      - ../server:/app
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py runserver 0.0.0.0:8000"
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL - Expose on localhost:5432
+  # ---------------------------------------------------------------------------
+  postgres:
+    ports:
+      - "5432:5432"
+    env_file:
+      - .env.development
+
+  # ---------------------------------------------------------------------------
+  # Redis - Expose on localhost:6379
+  # ---------------------------------------------------------------------------
+  redis:
+    ports:
+      - "6379:6379"
